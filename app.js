@@ -2,13 +2,20 @@ const Discord = require('discord.js');
 const { Client, MessageEmbed } = require('discord.js');
 const client = new Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION'] });
 const dayjs = require('dayjs')
+const utc = require('dayjs/plugin/utc')
+const timezone = require('dayjs/plugin/timezone')
+dayjs.extend(utc)
+dayjs.extend(timezone)
 const creds = require('./credentials.json');
 const BOT_NAME = 'nevaan-event-scheduler'
 const COMMAND_PREFIX = '!'
 const ARG_PREFIX = '--'
 const ALLOWED_DATE_ARG_WORDS = new Set(['today', 'tomorrow', 'day-after'])
+const ALLOWED_MENTION_ARGS = new Set(['none', 'all'])
 const DEFAULT_HOUR = '12'
 const DEFAULT_MINUTE = '15'
+const DATE_FORMATTER = 'MMMM D, YYYY h:mm A'
+const DEFAULT_TIMEZONE = 'America/New_York'
 
 client.once('ready', () => {
   console.log('Ready!');
@@ -21,25 +28,27 @@ client.login(creds['discordBotToken']);
 // --time (12:15pm)
 // --title (Who wants to Pho?)
 // --mention (default 'all', { accepted 'none' })
+// timezone (TODO): assuming EST for now
 
-const description = 'React with a :heart_eyes: to say you are going. :frowning2: is a no (too bad for you); :thinking: is a maybe'
-const parseDate = ({ date = 'today', hour = DEFAULT_HOUR, minute = DEFAULT_MINUTE }) => {
+const baseDescription = ':heart_eyes: = Going; :frowning2: = Not Going; :thinking: = Maybe'
+const formatDate = ({ date = 'today', hour = DEFAULT_HOUR, minute = DEFAULT_MINUTE }) => {
   const now = dayjs().format('YYYY-MM-DD')
   switch (date) {
     case 'today':
-      return dayjs(`${now}T${hour}:${minute}Z`).format('MM-DD-YYYY HH:mm A')
+      const today = dayjs(`${now}T${hour}:${minute}`)
+      return { formatted: today.format(DATE_FORMATTER), timezoned: dayjs.tz(today, DEFAULT_TIMEZONE) }
     case 'tomorrow':
-      // code
-      return dayjs(`${now}T${hour}:${minute}Z`).add(1, 'day').format('MM-DD-YYYY HH:mm A')
+      const tomorrow = dayjs(`${now}T${hour}:${minute}`).add(1, 'day')
+      return { formatted: tomorrow.format(DATE_FORMATTER), timezoned: dayjs.tz(tomorrow, DEFAULT_TIMEZONE) }
     case 'day-after':
-      // code
-      return dayjs(`${now}T${hour}:${minute}Z`).add(2, 'day').format('MM-DD-YYYY HH:mm A')
+      const dayAfter = dayjs(`${now}T${hour}:${minute}`).add(2, 'day')
+      return { formatted: dayAfter.format(DATE_FORMATTER), timezoned: dayjs.tz(dayAfter, DEFAULT_TIMEZONE) }
     default:
       const timestamp = Date.parse();
       if (isNaN(timestamp) == false) {
         return new Date(timestamp);
       }
-      return dayjs(new Date()).format('MM-DD-YYYY')
+      return dayjs(new Date()).format(DATE_FORMATTER)
   }
 }
 
@@ -54,6 +63,12 @@ const parseArgs = (args = []) => {
       if (argsSplit.length === 2) {
         const key = argsSplit[0].toLowerCase()
         switch (key) {
+          case 'mention':
+            const mentionValue = argsSplit[1].toLowerCase()
+            if (ALLOWED_MENTION_ARGS.has(mentionValue)) {
+              acc['mention'] = mentionValue
+            }
+            break;
           case 'date':
             const dateValue = argsSplit[1].toLowerCase()
             if (ALLOWED_DATE_ARG_WORDS.has(dateValue)) {
@@ -92,16 +107,7 @@ const parseArgs = (args = []) => {
       }
     }
     return acc
-  }, {})
-}
-
-const generateOptions = (argsParsed) => {
-  const date = parseDate({ date: 'today', ...argsParsed })
-  const options = { title: 'Who\'s down to pho?', mention: 'none', ...argsParsed }
-  return {
-    title: `${options.title} (${date})`,
-    mention: `${options.mention}`
-  }
+  }, { title: 'Who wants pho?', hour: '12', minute: '15', mention: 'none', date: 'today' })
 }
 
 // Get cracking here
@@ -111,15 +117,28 @@ client.on('message', (message) => {
   } else {
     const args = message.content.slice(COMMAND_PREFIX.length).trim().split(' ');
     const command = args.shift().toLowerCase();
-    const argsParsed = parseArgs(args)
-    console.log('ARGS PARSED', argsParsed)
-    const { title, mention, } = generateOptions(argsParsed)
+    const { title, hour, minute, mention, date } = parseArgs(args)
+    // if date === today and the time is greater than current time, default to tomorrow
+    let { formatted, timezoned } = formatDate({ date, hour, minute })
+    const clientTimeZoneOffSet = timezoned.utcOffset()
+    const messageCreated = message.createdAt
+    const messageCreatedAtConvertedToClientTZ = dayjs.utc(messageCreated).utcOffset(clientTimeZoneOffSet)
+    // Now check if the hours are more
+    let finalDateFormatted = formatted
+    const proposedDateHour = dayjs(formatted).hour()
+    const createdDateHour = messageCreatedAtConvertedToClientTZ.hour()
+    // mins
+    const proposedDateMin = dayjs(formatted).minute()
+    const createdDateMin = messageCreatedAtConvertedToClientTZ.minute()
+    if ((proposedDateHour < createdDateHour) || (proposedDateHour == createdDateHour && proposedDateMin < createdDateMin)) {
+      finalDateFormatted = dayjs(formatted).add(1, 'day').format(DATE_FORMATTER)
+    }
     switch (command) {
       case 'pho':
         const embed = new MessageEmbed({
           color: 3447003,
-          title,
-          description,
+          title: `${title}`,
+          description: `When: ${finalDateFormatted} \n \n ${baseDescription}`,
           fields: [
             {
               name: 'Going',
@@ -138,6 +157,9 @@ client.on('message', (message) => {
             },
           ],
           timestamp: new Date(),
+          footer: {
+            text: `${message.author.username}`
+          }
         })
         // Send a notification to all
         if (mention === 'all') {
