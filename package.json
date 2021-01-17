@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "aws-sdk": "^2.826.0",
+    "dayjs": "^1.10.3",
     "discord.js": "^12.5.1",
     "eslint": "^7.18.0",
     "express": "^4.17.1",
