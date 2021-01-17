@@ -1,6 +1,8 @@
 const Discord = require('discord.js');
-const client = new Discord.Client();
+const { Client, MessageEmbed } = require('discord.js');
+const client = new Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION'] });
 const creds = require('./credentials.json');
+const BOT_NAME = 'nevaan-event-scheduler'
 
 client.once('ready', () => {
   console.log('Ready!');
@@ -8,84 +10,63 @@ client.once('ready', () => {
 
 client.login(creds['discordBotToken']);
 
+// accepted args ️(defaults in parens)
+// --date (12:15pm)
+// --title (Who wants to Pho?)
+
+const description = 'React with a :heart_eyes: to say you are going. :frowning2: is a no (too bad for you); :thinking: is a maybe'
+
 // Get cracking here
 client.on('message', (message) => {
-  if (message.content === '!ping') {
-    message.channel.send({
-      embed: {
+  if (message.content === '!pho') {
+    const embed = new MessageEmbed({
         color: 3447003,
-        author: {
-          name: client.user.username,
-          icon_url: client.user.avatarURL(),
-        },
-        title: 'This is an embed',
-        url: 'http://google.com',
-        description:
-          'This is a test embed to showcase what they look like and what they can do.',
+        title: 'Who\'s down to pho?',
+        description,
         fields: [
           {
-            name: 'Fields',
-            value: 'They can have different fields with small headlines.',
+            name: 'Going',
+            value: '----',
+            inline: true
           },
           {
-            name: 'Masked links',
-            value:
-              'You can put [masked links](http://google.com) inside of rich embeds.',
+            name: 'Declined',
+            value: '----',
+            inline: true
           },
           {
-            name: 'Markdown',
-            value:
-              'You can put all the *usual* **__Markdown__** inside of them.',
+            name: 'Maybe',
+            value: '----',
+            inline: true
           },
         ],
         timestamp: new Date(),
         footer: {
-          icon_url: client.user.avatarURL(),
-          text: '© Example',
-        },
-      },
-    });
+          text: 'PHODULE'
+        }
+      }).setAuthor('PHODULE_BOT')
+    message.channel.send(embed);
   }
 });
 
-client.on('messageReactionAdd', (reaction, user) => {
-  reaction.message
-    .edit({
-      embed: {
-        color: 3447003,
-        author: {
-          name: client.user.username,
-          icon_url: client.user.avatarURL(),
-        },
-        title: 'This is an embed. NEW CONTNET@@!!!!!!!!!',
-        url: 'http://google.com',
-        description:
-          'This is a test embed to showcase what they look like and what they can do.',
-        fields: [
-          {
-            name: 'Fields',
-            value: 'They can have different fields with small headlines.',
-          },
-          {
-            name: 'Masked links',
-            value:
-              'You can put [masked links](http://google.com) inside of rich embeds.',
-          },
-          {
-            name: 'Markdown',
-            value:
-              'You can put all the *usual* **__Markdown__** inside of them.',
-          },
-        ],
-        timestamp: new Date(),
-        footer: {
-          icon_url: client.user.avatarURL(),
-          text: '© Example',
-        },
-      },
-    })
-    .then((msg) =>
-      console.log(`Updated the content of a message to ${msg.content}`)
-    )
-    .catch(console.error);
+client.on('messageReactionAdd', async (reaction, user) => {
+  // When we receive a reaction we check if the reaction is partial or not
+	if (reaction.partial) {
+		// If the message this reaction belongs to was removed the fetching might result in an API error, which we need to handle
+		try {
+			await reaction.fetch();
+		} catch (error) {
+			console.error('Something went wrong when fetching the message: ', error);
+			// Return as `reaction.message.author` may be undefined/null
+			return;
+		}
+	}
+	const message = reaction.message
+	if (message.author && message.author.bot && message.author.username === BOT_NAME) {
+	  console.log(`message`, reaction.message);
+	// Now the message has been cached and is fully available
+	console.log(`${message.author}'s message "${reaction.message.content}" gained a reaction!`);
+	// The reaction is now also fully available and the properties will be reflected accurately:
+	console.log(`${reaction.count} user(s) have given the same reaction to this message!`);
+	}
 });
