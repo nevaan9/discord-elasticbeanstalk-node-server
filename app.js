@@ -57,12 +57,19 @@ const isValidDate = () => {
 }
 
 const parseArgs = (args = []) => {
+  console.log(args)
   return args.reduce((acc, curr) => {
-    if (curr.startsWith(ARG_PREFIX)) {
-      const argsSplit = curr.slice(ARG_PREFIX.length).trim().split('=');
+    const argsSplit = curr.trim().split('=');
       if (argsSplit.length === 2) {
         const key = argsSplit[0].toLowerCase()
         switch (key) {
+          case 'title':
+            const titleValue = argsSplit[1].trim()
+            console.log('TITLE', titleValue)
+            if (titleValue) {
+              acc['title'] = titleValue
+            }
+            break;
           case 'mention':
             const mentionValue = argsSplit[1].toLowerCase()
             if (ALLOWED_MENTION_ARGS.has(mentionValue)) {
@@ -105,7 +112,6 @@ const parseArgs = (args = []) => {
             return acc
         }
       }
-    }
     return acc
   }, { title: 'Who wants pho?', hour: '12', minute: '15', mention: 'none', date: 'today' })
 }
@@ -115,26 +121,26 @@ client.on('message', (message) => {
   if (!message.content.startsWith(COMMAND_PREFIX) || message.author.bot) {
     return
   } else {
-    const args = message.content.slice(COMMAND_PREFIX.length).trim().split(' ');
-    const command = args.shift().toLowerCase();
-    const { title, hour, minute, mention, date } = parseArgs(args)
-    // if date === today and the time is greater than current time, default to tomorrow
-    let { formatted, timezoned } = formatDate({ date, hour, minute })
-    const clientTimeZoneOffSet = timezoned.utcOffset()
-    const messageCreated = message.createdAt
-    const messageCreatedAtConvertedToClientTZ = dayjs.utc(messageCreated).utcOffset(clientTimeZoneOffSet)
-    // Now check if the hours are more
-    let finalDateFormatted = formatted
-    const proposedDateHour = dayjs(formatted).hour()
-    const createdDateHour = messageCreatedAtConvertedToClientTZ.hour()
-    // mins
-    const proposedDateMin = dayjs(formatted).minute()
-    const createdDateMin = messageCreatedAtConvertedToClientTZ.minute()
-    if ((proposedDateHour < createdDateHour) || (proposedDateHour == createdDateHour && proposedDateMin < createdDateMin)) {
-      finalDateFormatted = dayjs(formatted).add(1, 'day').format(DATE_FORMATTER)
-    }
+    const command = message.content.slice(COMMAND_PREFIX.length).trim().split(' ').shift().toLowerCase();
     switch (command) {
       case 'pho':
+        const args = message.content.slice(COMMAND_PREFIX.length).trim().split(ARG_PREFIX).splice(1);
+        const { title, hour, minute, mention, date } = parseArgs(args)
+        // if date === today and the time is greater than current time, default to tomorrow
+        let { formatted, timezoned } = formatDate({ date, hour, minute })
+        const clientTimeZoneOffSet = timezoned.utcOffset()
+        const messageCreated = message.createdAt
+        const messageCreatedAtConvertedToClientTZ = dayjs.utc(messageCreated).utcOffset(clientTimeZoneOffSet)
+        // Now check if the hours are more
+        let finalDateFormatted = formatted
+        const proposedDateHour = dayjs(formatted).hour()
+        const createdDateHour = messageCreatedAtConvertedToClientTZ.hour()
+        // mins
+        const proposedDateMin = dayjs(formatted).minute()
+        const createdDateMin = messageCreatedAtConvertedToClientTZ.minute()
+        if ((proposedDateHour < createdDateHour) || (proposedDateHour == createdDateHour && proposedDateMin < createdDateMin)) {
+          finalDateFormatted = dayjs(formatted).add(1, 'day').format(DATE_FORMATTER)
+        }
         const embed = new MessageEmbed({
           color: 3447003,
           title: `${title}`,
