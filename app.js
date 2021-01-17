@@ -1,35 +1,91 @@
-const express = require("express");
-const app = express();
-const port = process.env.PORT || 3000;
-const AWS = require("aws-sdk");
-const env = process.env.NODE_ENV || "development";
-if (env === "development") {
-  const profileCreds = require("./credentials.json");
-  const credentials = new AWS.SharedIniFileCredentials({
-    profile: profileCreds["profile"],
-  });
-  AWS.config.credentials = credentials;
-}
+const Discord = require('discord.js');
+const client = new Discord.Client();
+const creds = require('./credentials.json');
 
-// S3 service
-const s3 = new AWS.S3();
-
-app.get("/", (req, res) => {
-  res.send(
-    JSON.stringify({ port: port, message: "hello from my backend server!" })
-  );
+client.once('ready', () => {
+  console.log('Ready!');
 });
 
-app.get("/buckets", async (req, res) => {
-  s3.listBuckets(function (err, data) {
-    if (err) {
-      res.send(JSON.stringify(err));
-    } else {
-      res.send(JSON.stringify(data["Buckets"]));
-    }
-  });
+client.login(creds['discordBotToken']);
+
+// Get cracking here
+client.on('message', (message) => {
+  if (message.content === '!ping') {
+    message.channel.send({
+      embed: {
+        color: 3447003,
+        author: {
+          name: client.user.username,
+          icon_url: client.user.avatarURL(),
+        },
+        title: 'This is an embed',
+        url: 'http://google.com',
+        description:
+          'This is a test embed to showcase what they look like and what they can do.',
+        fields: [
+          {
+            name: 'Fields',
+            value: 'They can have different fields with small headlines.',
+          },
+          {
+            name: 'Masked links',
+            value:
+              'You can put [masked links](http://google.com) inside of rich embeds.',
+          },
+          {
+            name: 'Markdown',
+            value:
+              'You can put all the *usual* **__Markdown__** inside of them.',
+          },
+        ],
+        timestamp: new Date(),
+        footer: {
+          icon_url: client.user.avatarURL(),
+          text: '© Example',
+        },
+      },
+    });
+  }
 });
 
-app.listen(port, () => {
-  console.log(`Example app listening at ${port}`);
+client.on('messageReactionAdd', (reaction, user) => {
+  reaction.message
+    .edit({
+      embed: {
+        color: 3447003,
+        author: {
+          name: client.user.username,
+          icon_url: client.user.avatarURL(),
+        },
+        title: 'This is an embed. NEW CONTNET@@!!!!!!!!!',
+        url: 'http://google.com',
+        description:
+          'This is a test embed to showcase what they look like and what they can do.',
+        fields: [
+          {
+            name: 'Fields',
+            value: 'They can have different fields with small headlines.',
+          },
+          {
+            name: 'Masked links',
+            value:
+              'You can put [masked links](http://google.com) inside of rich embeds.',
+          },
+          {
+            name: 'Markdown',
+            value:
+              'You can put all the *usual* **__Markdown__** inside of them.',
+          },
+        ],
+        timestamp: new Date(),
+        footer: {
+          icon_url: client.user.avatarURL(),
+          text: '© Example',
+        },
+      },
+    })
+    .then((msg) =>
+      console.log(`Updated the content of a message to ${msg.content}`)
+    )
+    .catch(console.error);
 });
