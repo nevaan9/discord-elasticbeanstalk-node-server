@@ -60,7 +60,7 @@ client.login(discordCredentials);
 // --people (default '4', { accepted number })
 // timezone (TODO): assuming EST for now
 
-const helpText = `Accepted arguments: \n\n --date=<value> [acceptedValues = today|tomorrow|day-after]: Date for the event \n\n --time=<value> [default=${DEFAULT_HOUR}:${DEFAULT_MINUTE}, format={hh}:{mm}, use 24 hour clock values]: Time of the event \n\n --title=<value> [default=${DEFAULT_TITLE}]: Title of the event \n\n --mention=<value> [default=none, acceptedValues= none|all]: If you'd like to notify all in the channel \n\n --minPeople=<value> [default=4, NOT IMPLEMENTED YET!]: The minumum number of people required to say 'Going' for the google cal link to show up `;
+const helpText = `Accepted arguments: \n\n --date=<value> [default=today, acceptedValues = today|tomorrow|day-after]: Date for the event \n\n --time=<value> [default=${DEFAULT_HOUR}:${DEFAULT_MINUTE}, format={hh}:{mm}, use 24 hour clock values]: Time of the event \n\n --title=<value> [default=${DEFAULT_TITLE}]: Title of the event \n\n --mention=<value> [default=none, acceptedValues= none|all]: If you'd like to notify all in the channel \n\n --minPeople=<value> [default=4, NOT IMPLEMENTED YET!]: The minumum number of people required to say 'Going' for the google cal link to show up `;
 const baseDescription =
   ':heart_eyes: = Going; :frowning2: = Not Going; :thinking: = Maybe';
 
