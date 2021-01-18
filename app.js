@@ -192,12 +192,54 @@ const addUserToField = (field, username) => {
   }
 }
 
-const removeUserFromFields = (field1, field2, username) => {
-  const field1Values = field1.value.split('\n')
-  const field2Values = field2.value.split('\n')
-  field1.value = field1Values.filter(fv => fv !== username).join('\n')
-  field2.value = field2Values.filter(fv => fv !== username).join('\n')
+const removeUserFromFields = (fields = [], username) => {
+  fields.forEach(field => {
+    if (field && typeof field.value === 'string') {
+      const fieldValues = field.value.split('\n')
+      field.value = fieldValues.filter(fv => fv !== username).join('\n')
+    }
+  })
 }
+
+client.on('messageReactionRemove', async (reaction, user) => {
+  // When we receive a reaction we check if the reaction is partial or not
+	if (reaction.partial) {
+		// If the message this reaction belongs to was removed the fetching might result in an API error, which we need to handle
+		try {
+			await reaction.fetch();
+		} catch (error) {
+			console.error('Something went wrong when fetching the message: ', error);
+			// Return as `reaction.message.author` may be undefined/null
+			return;
+		}
+	}
+	const message = reaction.message
+	if (message.author && message.author.bot && message.author.username === BOT_NAME) {
+	  const currentReactionId = reaction.emoji.identifier
+	  const rsvpReactions = new Set([THINKING_EMOJI_ID, HEART_EYES_EMOJI_ID, FROWNING2_EMOJI_ID])
+	  // Only need to do all this work if the user reacted with an RSVP reaction
+	  if (rsvpReactions.has(currentReactionId)) {
+      // Send the updated message
+      // Bets if we keep track of all this with a DATABASE, but since our channel only has few users if wont be an issue
+      const currentGoingField = reaction.message.embeds[0].fields[0]
+      const currentDeclinedField = reaction.message.embeds[0].fields[1]
+      const currentMaybeField = reaction.message.embeds[0].fields[2]
+      const usernameOfPersonWhoReacted = user.username
+      // Add the user to the field
+      if (currentReactionId === HEART_EYES_EMOJI_ID) {
+        removeUserFromFields([currentGoingField], usernameOfPersonWhoReacted)
+      } else if (currentReactionId === FROWNING2_EMOJI_ID) {
+        removeUserFromFields([currentDeclinedField], usernameOfPersonWhoReacted)
+      } else if (currentReactionId === THINKING_EMOJI_ID) {
+        removeUserFromFields([currentMaybeField], usernameOfPersonWhoReacted)
+      }
+      const updatedFieldValues = [currentGoingField, currentDeclinedField, currentMaybeField]
+      const embed = reaction.message.embeds[0]
+      embed.spliceFields(0, 3, updatedFieldValues)
+      reaction.message.edit(embed)
+	  }
+	}
+});
 
 client.on('messageReactionAdd', async (reaction, user) => {
   // When we receive a reaction we check if the reaction is partial or not
@@ -217,6 +259,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
 	  const rsvpReactions = new Set([THINKING_EMOJI_ID, HEART_EYES_EMOJI_ID, FROWNING2_EMOJI_ID])
 	  // Only need to do all this work if the user reacted with an RSVP reaction
 	  if (rsvpReactions.has(currentReactionId)) {
+	    let reactionRemoved = false
 	    const userId = user.id
 	    // Make sure the user cannot react to multiple RSVP reactions
 	    const userReactions = message.reactions.cache.filter(reaction => reaction.users.cache.has(userId));
@@ -226,26 +269,27 @@ client.on('messageReactionAdd', async (reaction, user) => {
   	      if (rsvpReactions.has(userReactionId) && userReactionId !== currentReactionId) {
   	        // Okay now make sure the user has not use any other RSVP reactions; if so, remove it
   	        await userReaction.users.remove(userId)
+  	        reactionRemoved = true
   	      }
   	    }
       } catch (error) {
   	    console.error('Failed to remove reactions.');
       }
       // Send the updated message
-      // Bets if we keep track of all this with a DATABASE, but since our channel only has few users if wont be an issue
+      // wait till messageReactionRemove runs
+      const waitTime = reactionRemoved ? 200 : 0
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      // BEST if we keep track of all this with a DATABASE, but since our channel only has few users if wont be an issue
       const currentGoingField = reaction.message.embeds[0].fields[0]
       const currentDeclinedField = reaction.message.embeds[0].fields[1]
       const currentMaybeField = reaction.message.embeds[0].fields[2]
       const usernameOfPersonWhoReacted = user.username
       // Add the user to the field
       if (currentReactionId === HEART_EYES_EMOJI_ID) {
-        removeUserFromFields(currentDeclinedField, currentMaybeField, usernameOfPersonWhoReacted)
         addUserToField(currentGoingField, usernameOfPersonWhoReacted)
       } else if (currentReactionId === FROWNING2_EMOJI_ID) {
-        removeUserFromFields(currentGoingField, currentMaybeField, usernameOfPersonWhoReacted)
         addUserToField(currentDeclinedField, usernameOfPersonWhoReacted)
       } else if (currentReactionId === THINKING_EMOJI_ID) {
-        removeUserFromFields(currentGoingField, currentDeclinedField, usernameOfPersonWhoReacted)
         addUserToField(currentMaybeField, usernameOfPersonWhoReacted)
       }
       const updatedFieldValues = [currentGoingField, currentDeclinedField, currentMaybeField]
