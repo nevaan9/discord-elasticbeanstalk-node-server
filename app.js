@@ -14,6 +14,7 @@ const ALLOWED_DATE_ARG_WORDS = new Set(['today', 'tomorrow', 'day-after'])
 const ALLOWED_MENTION_ARGS = new Set(['none', 'all'])
 const DEFAULT_HOUR = '12'
 const DEFAULT_MINUTE = '15'
+const DEFAULT_TITLE = 'Who wants pho?'
 const DATE_FORMATTER = 'MMMM D, YYYY h:mm A'
 const DEFAULT_TIMEZONE = 'America/New_York'
 const HEART_EYES_EMOJI_ID = '%F0%9F%98%8D'
@@ -33,6 +34,7 @@ client.login(creds['discordBotToken']);
 // --mention (default 'all', { accepted 'none' })
 // timezone (TODO): assuming EST for now
 
+const helpText = `Accepted arguments: \n --date=<value> [acceptedValues = today|tomorrow|day-after] \n --time=<value> [default=${DEFAULT_HOUR}:${DEFAULT_MINUTE}, format={hh}:{mm}, use 24 hour clock values] \n --title=<value> [default=${DEFAULT_TITLE}] \n --mention=<value> [default=none, acceptedValues= none|all]`
 const baseDescription = ':heart_eyes: = Going; :frowning2: = Not Going; :thinking: = Maybe'
 const formatDate = ({ date = 'today', hour = DEFAULT_HOUR, minute = DEFAULT_MINUTE }) => {
   const now = dayjs().format('YYYY-MM-DD')
@@ -114,7 +116,7 @@ const parseArgs = (args = []) => {
         }
       }
     return acc
-  }, { title: 'Who wants pho?', hour: '12', minute: '15', mention: 'none', date: 'today' })
+  }, { title: DEFAULT_TITLE, hour: '12', minute: '15', mention: 'none', date: 'today' })
 }
 
 // Get cracking here
@@ -126,6 +128,10 @@ client.on('message', (message) => {
     switch (command) {
       case 'pho':
         const args = message.content.slice(COMMAND_PREFIX.length).trim().split(ARG_PREFIX).splice(1);
+        if (args.includes('help')) {
+          message.channel.send(helpText)
+          return
+        }
         const { title, hour, minute, mention, date } = parseArgs(args)
         // if date === today and the time is greater than current time, default to tomorrow
         let { formatted, timezoned } = formatDate({ date, hour, minute })
