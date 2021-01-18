@@ -1,0 +1,25 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: DynamoDB Table to store schedule info
+Globals:
+  Function:
+    Runtime: nodejs12.x
+    Timeout: 30
+    MemorySize: 128
+    Environment:
+      Variables:
+        REACTIONS_TABLE_NAME: !Ref Reactions
+Resources:
+  Reactions:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: "MessageId"
+          AttributeType: "S"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: "MessageId"
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: "TTL"
+        Enabled: true

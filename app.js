@@ -1,4 +1,6 @@
-const Discord = require('discord.js');
+
+const AWS = require("aws-sdk");
+// discord stuff
 const { Client, MessageEmbed } = require('discord.js');
 const client = new Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION'] });
 const dayjs = require('dayjs')
@@ -6,7 +8,6 @@ const utc = require('dayjs/plugin/utc')
 const timezone = require('dayjs/plugin/timezone')
 dayjs.extend(utc)
 dayjs.extend(timezone)
-const creds = require('./credentials.json');
 const BOT_NAME = 'nevaan-event-scheduler'
 const COMMAND_PREFIX = '!'
 const ARG_PREFIX = '--'
@@ -25,7 +26,27 @@ client.once('ready', () => {
   console.log('Ready!');
 });
 
-client.login(creds['discordBotToken']);
+const ENV = process.env.NODE_ENV
+let creds = {}
+console.log('ENVIRONMENT', ENV)
+if (!ENV || ENV === 'development') {
+  try {
+    creds = require('./credentials.json');
+  } catch (e) {
+    console.error('Credentials file could not be loaded in dev mode!')
+    return
+  }
+}
+
+const reactionsTableName = process.env.REACTIONS_TABLE_NAME || creds['reactionsTableName'];
+const discordCredentials = process.env.DISCORD_BOT_TOKEN || creds['discordBotToken']
+const region = process.env.AWS_REGION || creds['awsRegion']
+
+// Set up AWS STUFF
+AWS.config.update({ region });
+// Store messages in a DynamoDB table
+const ddb = new AWS.DynamoDB();
+client.login(discordCredentials);
 
 // accepted args ️(defaults in parens)
 // --date (today)
@@ -36,88 +57,6 @@ client.login(creds['discordBotToken']);
 
 const helpText = `Accepted arguments: \n --date=<value> [acceptedValues = today|tomorrow|day-after] \n --time=<value> [default=${DEFAULT_HOUR}:${DEFAULT_MINUTE}, format={hh}:{mm}, use 24 hour clock values] \n --title=<value> [default=${DEFAULT_TITLE}] \n --mention=<value> [default=none, acceptedValues= none|all]`
 const baseDescription = ':heart_eyes: = Going; :frowning2: = Not Going; :thinking: = Maybe'
-const formatDate = ({ date = 'today', hour = DEFAULT_HOUR, minute = DEFAULT_MINUTE }) => {
-  const now = dayjs().format('YYYY-MM-DD')
-  switch (date) {
-    case 'today':
-      const today = dayjs(`${now}T${hour}:${minute}`)
-      return { formatted: today.format(DATE_FORMATTER), timezoned: dayjs.tz(today, DEFAULT_TIMEZONE) }
-    case 'tomorrow':
-      const tomorrow = dayjs(`${now}T${hour}:${minute}`).add(1, 'day')
-      return { formatted: tomorrow.format(DATE_FORMATTER), timezoned: dayjs.tz(tomorrow, DEFAULT_TIMEZONE) }
-    case 'day-after':
-      const dayAfter = dayjs(`${now}T${hour}:${minute}`).add(2, 'day')
-      return { formatted: dayAfter.format(DATE_FORMATTER), timezoned: dayjs.tz(dayAfter, DEFAULT_TIMEZONE) }
-    default:
-      const timestamp = Date.parse();
-      if (isNaN(timestamp) == false) {
-        return new Date(timestamp);
-      }
-      return dayjs(new Date()).format(DATE_FORMATTER)
-  }
-}
-
-const isValidDate = () => {
-  return false
-}
-
-const parseArgs = (args = []) => {
-  return args.reduce((acc, curr) => {
-    const argsSplit = curr.trim().split('=');
-      if (argsSplit.length === 2) {
-        const key = argsSplit[0].toLowerCase()
-        switch (key) {
-          case 'title':
-            const titleValue = argsSplit[1].trim()
-            if (titleValue) {
-              acc['title'] = titleValue
-            }
-            break;
-          case 'mention':
-            const mentionValue = argsSplit[1].toLowerCase()
-            if (ALLOWED_MENTION_ARGS.has(mentionValue)) {
-              acc['mention'] = mentionValue
-            }
-            break;
-          case 'date':
-            const dateValue = argsSplit[1].toLowerCase()
-            if (ALLOWED_DATE_ARG_WORDS.has(dateValue)) {
-              acc['date'] = dateValue
-            } else {
-              if (isValidDate(dateValue)) {
-                acc['date'] = dateValue
-              }
-            }
-            break;
-          case 'time':
-            let validHourProvided = false
-            const timeValue = argsSplit[1].toLowerCase()
-            const timesSplit = timeValue.split(':')
-            // parse the hour
-            const hourParsed = parseInt(timesSplit[0] || '0')
-            if ((hourParsed !== undefined || hourParsed !== null) && !isNaN(hourParsed) && hourParsed > -1 && hourParsed < 24) {
-              acc['hour'] = `${hourParsed < 10 ? '0' + hourParsed : hourParsed}`
-              validHourProvided = true
-            } else {
-              acc['hour'] = DEFAULT_HOUR
-            }
-            // parse the minute
-            if (validHourProvided) {
-              const minuteParsed = parseInt(timesSplit[1] || '0')
-              if ((minuteParsed !== undefined || minuteParsed !== null) && !isNaN(minuteParsed) && minuteParsed > -1 && minuteParsed < 60) {
-                acc['minute'] = `${minuteParsed < 10 ? '0' + minuteParsed : minuteParsed}`
-              } else {
-                acc['minute'] = DEFAULT_MINUTE
-              }
-            }
-            break;
-          default:
-            return acc
-        }
-      }
-    return acc
-  }, { title: DEFAULT_TITLE, hour: '12', minute: '15', mention: 'none', date: 'today' })
-}
 
 // Get cracking here
 client.on('message', (message) => {
@@ -175,12 +114,29 @@ client.on('message', (message) => {
           }
         })
         // Send a notification to all
+        const defaultAttendees = {
+          GOING: ['----'],
+          DECLINDED: ['----'],
+          MAYBE: ['----']
+        }
         if (mention === 'all') {
           message.channel.send('@everyone').then(() => {
-            message.channel.send(embed)
+            message.channel.send(embed).then(async messageInfo => {
+              try {
+                await putMessage(`${messageInfo.id}`, defaultAttendees)
+              } catch (e) {
+                console.error(e, 'Error adding info to reactions table')
+              }
+            })
           })
         } else {
-          message.channel.send(embed)
+          message.channel.send(embed).then(async messageInfo => {
+            try {
+              await putMessage(`${messageInfo.id}`, defaultAttendees)
+            } catch (e) {
+              console.error(e, 'Error adding info to reactions table')
+            }
+          })
         }
         break;
       default:
@@ -305,3 +261,119 @@ client.on('messageReactionAdd', async (reaction, user) => {
 	  }
 	}
 });
+
+// ================== HELPERS ==========================
+
+const formatDate = ({ date = 'today', hour = DEFAULT_HOUR, minute = DEFAULT_MINUTE }) => {
+  const now = dayjs().format('YYYY-MM-DD')
+  switch (date) {
+    case 'today':
+      const today = dayjs(`${now}T${hour}:${minute}`)
+      return { formatted: today.format(DATE_FORMATTER), timezoned: dayjs.tz(today, DEFAULT_TIMEZONE) }
+    case 'tomorrow':
+      const tomorrow = dayjs(`${now}T${hour}:${minute}`).add(1, 'day')
+      return { formatted: tomorrow.format(DATE_FORMATTER), timezoned: dayjs.tz(tomorrow, DEFAULT_TIMEZONE) }
+    case 'day-after':
+      const dayAfter = dayjs(`${now}T${hour}:${minute}`).add(2, 'day')
+      return { formatted: dayAfter.format(DATE_FORMATTER), timezoned: dayjs.tz(dayAfter, DEFAULT_TIMEZONE) }
+    default:
+      const timestamp = Date.parse();
+      if (isNaN(timestamp) == false) {
+        return new Date(timestamp);
+      }
+      return dayjs(new Date()).format(DATE_FORMATTER)
+  }
+}
+
+const isValidDate = () => {
+  return false
+}
+
+const parseArgs = (args = []) => {
+  return args.reduce((acc, curr) => {
+    const argsSplit = curr.trim().split('=');
+      if (argsSplit.length === 2) {
+        const key = argsSplit[0].toLowerCase()
+        switch (key) {
+          case 'title':
+            const titleValue = argsSplit[1].trim()
+            if (titleValue) {
+              acc['title'] = titleValue
+            }
+            break;
+          case 'mention':
+            const mentionValue = argsSplit[1].toLowerCase()
+            if (ALLOWED_MENTION_ARGS.has(mentionValue)) {
+              acc['mention'] = mentionValue
+            }
+            break;
+          case 'date':
+            const dateValue = argsSplit[1].toLowerCase()
+            if (ALLOWED_DATE_ARG_WORDS.has(dateValue)) {
+              acc['date'] = dateValue
+            } else {
+              if (isValidDate(dateValue)) {
+                acc['date'] = dateValue
+              }
+            }
+            break;
+          case 'time':
+            let validHourProvided = false
+            const timeValue = argsSplit[1].toLowerCase()
+            const timesSplit = timeValue.split(':')
+            // parse the hour
+            const hourParsed = parseInt(timesSplit[0] || '0')
+            if ((hourParsed !== undefined || hourParsed !== null) && !isNaN(hourParsed) && hourParsed > -1 && hourParsed < 24) {
+              acc['hour'] = `${hourParsed < 10 ? '0' + hourParsed : hourParsed}`
+              validHourProvided = true
+            } else {
+              acc['hour'] = DEFAULT_HOUR
+            }
+            // parse the minute
+            if (validHourProvided) {
+              const minuteParsed = parseInt(timesSplit[1] || '0')
+              if ((minuteParsed !== undefined || minuteParsed !== null) && !isNaN(minuteParsed) && minuteParsed > -1 && minuteParsed < 60) {
+                acc['minute'] = `${minuteParsed < 10 ? '0' + minuteParsed : minuteParsed}`
+              } else {
+                acc['minute'] = DEFAULT_MINUTE
+              }
+            }
+            break;
+          default:
+            return acc
+        }
+      }
+    return acc
+  }, { title: DEFAULT_TITLE, hour: '12', minute: '15', mention: 'none', date: 'today' })
+}
+
+// Retrieves the meeting from the table by the meeting title
+async function getMessage(messageId) {
+  const result = await ddb
+    .getItem({
+      TableName: reactionsTableName,
+      Key: {
+        Title: {
+          S: messageId,
+        },
+      },
+    })
+    .promise();
+  return result.Item ? JSON.parse(result.Item.Data.S) : null;
+}
+
+// Stores the meeting in the table using the meeting title as the key
+async function putMessage(messageId, attendeeInfo) {
+  await ddb
+    .putItem({
+      TableName: reactionsTableName,
+      Item: {
+        MessageId: { S: messageId },
+        Data: { S: JSON.stringify(attendeeInfo) },
+        TTL: {
+          N: `${Math.floor(Date.now() / 1000) + 60 * 60 * 24}`, // clean up meeting record one day from now
+        },
+      }
+    })
+    .promise();
+}
