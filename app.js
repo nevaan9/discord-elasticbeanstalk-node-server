@@ -45,7 +45,7 @@ const region = process.env.AWS_REGION || creds['awsRegion']
 // Set up AWS STUFF
 AWS.config.update({ region });
 // Store messages in a DynamoDB table
-const ddb = new AWS.DynamoDB();
+const ddbDocumentClient = new AWS.DynamoDB.DocumentClient();
 client.login(discordCredentials);
 
 // accepted args ️(defaults in parens)
@@ -123,7 +123,7 @@ client.on('message', (message) => {
           message.channel.send('@everyone').then(() => {
             message.channel.send(embed).then(async messageInfo => {
               try {
-                await putMessage(`${messageInfo.id}`, defaultAttendees)
+                await putMessage(`${messageInfo.id}`, defaultAttendees.GOING, defaultAttendees.DECLINDED, defaultAttendees.MAYBE)
               } catch (e) {
                 console.error(e, 'Error adding info to reactions table')
               }
@@ -132,7 +132,7 @@ client.on('message', (message) => {
         } else {
           message.channel.send(embed).then(async messageInfo => {
             try {
-              await putMessage(`${messageInfo.id}`, defaultAttendees)
+              await putMessage(`${messageInfo.id}`, defaultAttendees.GOING, defaultAttendees.DECLINDED, defaultAttendees.MAYBE)
             } catch (e) {
               console.error(e, 'Error adding info to reactions table')
             }
@@ -188,17 +188,35 @@ client.on('messageReactionRemove', async (reaction, user) => {
       const currentMaybeField = reaction.message.embeds[0].fields[2]
       const usernameOfPersonWhoReacted = user.username
       // Add the user to the field
+      let updatedData
       if (currentReactionId === HEART_EYES_EMOJI_ID) {
-        removeUserFromFields([currentGoingField], usernameOfPersonWhoReacted)
+        updatedData = await updateMessage({ updateType: 'DELETE', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'GOING' })
+        if (updatedData) {
+          const fieldValues = updatedData.GOING.join('\n')
+          const updatedField = [{ name: 'Going', value: fieldValues, inline: true }]
+          const embed = reaction.message.embeds[0]
+          embed.spliceFields(0, 1, updatedField)
+          reaction.message.edit(embed)
+        }
       } else if (currentReactionId === FROWNING2_EMOJI_ID) {
-        removeUserFromFields([currentDeclinedField], usernameOfPersonWhoReacted)
+        updatedData = await updateMessage({ updateType: 'DELETE', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'DECLINED' })
+        if (updatedData) {
+          const fieldValues = updatedData.DECLINED.join('\n')
+          const updatedField = [{ name: 'Declined', value: fieldValues, inline: true }]
+          const embed = reaction.message.embeds[0]
+          embed.spliceFields(1, 1, updatedField)
+          reaction.message.edit(embed)
+        }
       } else if (currentReactionId === THINKING_EMOJI_ID) {
-        removeUserFromFields([currentMaybeField], usernameOfPersonWhoReacted)
+        updatedData = await updateMessage({ updateType: 'DELETE', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'MAYBE' })
+        if (updatedData) {
+          const fieldValues = updatedData.MAYBE.join('\n')
+          const updatedField = [{ name: 'Maybe', value: fieldValues, inline: true }]
+          const embed = reaction.message.embeds[0]
+          embed.spliceFields(1, 1, updatedField)
+          reaction.message.edit(embed)
+        }
       }
-      const updatedFieldValues = [currentGoingField, currentDeclinedField, currentMaybeField]
-      const embed = reaction.message.embeds[0]
-      embed.spliceFields(0, 3, updatedFieldValues)
-      reaction.message.edit(embed)
 	  }
 	}
 });
@@ -229,7 +247,6 @@ client.on('messageReactionAdd', async (reaction, user) => {
   	    for (const userReaction of userReactions.values()) {
   	      const userReactionId = userReaction.emoji.identifier
   	      if (rsvpReactions.has(userReactionId) && userReactionId !== currentReactionId) {
-  	        // Okay now make sure the user has not use any other RSVP reactions; if so, remove it
   	        await userReaction.users.remove(userId)
   	        reactionRemoved = true
   	      }
@@ -349,31 +366,49 @@ const parseArgs = (args = []) => {
 
 // Retrieves the meeting from the table by the meeting title
 async function getMessage(messageId) {
-  const result = await ddb
-    .getItem({
+  const result = await ddbDocumentClient
+    .get({
       TableName: reactionsTableName,
       Key: {
-        Title: {
-          S: messageId,
-        },
+        MessageId: messageId
       },
     })
     .promise();
-  return result.Item ? JSON.parse(result.Item.Data.S) : null;
+  return result
 }
 
 // Stores the meeting in the table using the meeting title as the key
-async function putMessage(messageId, attendeeInfo) {
-  await ddb
-    .putItem({
+async function putMessage(messageId, going, declined, maybe) {
+  await ddbDocumentClient
+    .put({
       TableName: reactionsTableName,
       Item: {
-        MessageId: { S: messageId },
-        Data: { S: JSON.stringify(attendeeInfo) },
-        TTL: {
-          N: `${Math.floor(Date.now() / 1000) + 60 * 60 * 24}`, // clean up meeting record one day from now
-        },
+        MessageId: messageId,
+        GOING: ddbDocumentClient.createSet(going),
+        DECLINED: ddbDocumentClient.createSet(declined),
+        MAYBE: ddbDocumentClient.createSet(maybe),
+        TTL: `${Math.floor(Date.now() / 1000) + 60 * 60 * 24}`, // clean up meeting record one day from now
       }
     })
     .promise();
+}
+
+async function updateMessage({ updateType, values, messageId, setName }) {
+  if (updateType === 'DELETE') {
+    const result = await ddbDocumentClient
+    .update({
+      TableName: reactionsTableName,
+      Key: { MessageId: messageId },
+      UpdateExpression: `DELETE ${setName} :v`,
+      ExpressionAttributeValues: {
+        ":v": ddbDocumentClient.createSet(values)
+      },
+      ReturnValues: 'ALL_NEW'
+    })
+    .promise();
+    if (!result.err) {
+      return { GOING: result.Attributes.GOING.values, DECLINED: result.Attributes.DECLINED.values, MAYBE: result.Attributes.MAYBE.values }
+    }
+    return null
+  }
 }
