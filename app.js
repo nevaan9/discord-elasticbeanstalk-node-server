@@ -7,7 +7,6 @@ const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
 dayjs.extend(utc);
 dayjs.extend(timezone);
-const BOT_NAME = 'nevaan-event-scheduler';
 const COMMAND_PREFIX = '!';
 const ARG_PREFIX = '--';
 const ALLOWED_DATE_ARG_WORDS = new Set(['today', 'tomorrow', 'day-after']);
@@ -45,6 +44,7 @@ const reactionsTableName =
 const discordCredentials =
   process.env.DISCORD_BOT_TOKEN || creds['discordBotToken'];
 const region = process.env.AWS_REGION || creds['awsRegion'];
+const BOT_APP_NAME = process.env.BOT_APP_NAME || creds['botAppName'];
 
 // Set up AWS STUFF
 AWS.config.update({ region });
@@ -178,15 +178,6 @@ client.on('message', (message) => {
   }
 });
 
-const addUserToField = (field, username) => {
-  const fieldValues = field.value.split('\n');
-  const fieldValuesSet = new Set(fieldValues);
-  if (!fieldValuesSet.has(username)) {
-    fieldValues.push(username);
-    field.value = fieldValues.join('\n');
-  }
-};
-
 client.on('messageReactionRemove', async (reaction, user) => {
   // When we receive a reaction we check if the reaction is partial or not
   if (reaction.partial) {
@@ -203,7 +194,7 @@ client.on('messageReactionRemove', async (reaction, user) => {
   if (
     message.author &&
     message.author.bot &&
-    message.author.username === BOT_NAME
+    message.author.username === BOT_APP_NAME
   ) {
     const currentReactionId = reaction.emoji.identifier;
     const rsvpReactions = new Set([
@@ -288,7 +279,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
   if (
     message.author &&
     message.author.bot &&
-    message.author.username === BOT_NAME
+    message.author.username === BOT_APP_NAME
   ) {
     const currentReactionId = reaction.emoji.identifier;
     const rsvpReactions = new Set([
