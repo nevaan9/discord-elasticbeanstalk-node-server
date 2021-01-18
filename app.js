@@ -19,7 +19,7 @@ const DEFAULT_MENTION = 'none'
 const ALLOWED_MENTION_ARGS = new Set([DEFAULT_MENTION, 'all'])
 const DEFAULT_TITLE = 'Who wants pho?'
 const DATE_FORMATTER = 'MMMM D, YYYY h:mm A'
-const GOING_NUMBER_FOR_LINK = 4
+const DEFAULT_MIN_PEOPLE = 4
 const DEFAULT_TIMEZONE = 'America/New_York'
 const HEART_EYES_EMOJI_ID = '%F0%9F%98%8D'
 const THINKING_EMOJI_ID = '%F0%9F%A4%94'
@@ -56,9 +56,10 @@ client.login(discordCredentials);
 // --time (12:15pm)
 // --title (Who wants to Pho?)
 // --mention (default 'all', { accepted 'none' })
+// --people (default '4', { accepted number })
 // timezone (TODO): assuming EST for now
 
-const helpText = `Accepted arguments: \n --date=<value> [acceptedValues = today|tomorrow|day-after] \n --time=<value> [default=${DEFAULT_HOUR}:${DEFAULT_MINUTE}, format={hh}:{mm}, use 24 hour clock values] \n --title=<value> [default=${DEFAULT_TITLE}] \n --mention=<value> [default=none, acceptedValues= none|all]`
+const helpText = `Accepted arguments: \n\n --date=<value> [acceptedValues = today|tomorrow|day-after]: Date for the event \n\n --time=<value> [default=${DEFAULT_HOUR}:${DEFAULT_MINUTE}, format={hh}:{mm}, use 24 hour clock values]: Time of the event \n\n --title=<value> [default=${DEFAULT_TITLE}]: Title of the event \n\n --mention=<value> [default=none, acceptedValues= none|all]: If you'd like to notify all in the channel \n\n --minPeople=<value> [default=4, NOT IMPLEMENTED YET!]: The minumum number of people required to say 'Going' for the google cal link to show up `
 const baseDescription = ':heart_eyes: = Going; :frowning2: = Not Going; :thinking: = Maybe'
 
 // Get cracking here
@@ -261,8 +262,8 @@ client.on('messageReactionAdd', async (reaction, user) => {
           const embed = reaction.message.embeds[0]
           embed.spliceFields(0, 1, updatedField)
           // Should we add a google link?
-          if (new Set(updatedData.GOING).size >= GOING_NUMBER_FOR_LINK) {
-            embed.setFooter(`${GOING_NUMBER_FOR_LINK} or more people said they are going! Make a calendar invite by clicking the link on top!`).setURL('https://calendar.google.com/calendar/')
+          if (new Set(updatedData.GOING).size >= DEFAULT_MIN_PEOPLE) {
+            embed.setFooter(`${DEFAULT_MIN_PEOPLE} or more people said they are going! Make a calendar invite by clicking the link on top!`).setURL('https://calendar.google.com/calendar/')
           }
           reaction.message.edit(embed)
           // Make sure no dupes a lying around
