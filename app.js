@@ -16,6 +16,9 @@ const DEFAULT_HOUR = '12'
 const DEFAULT_MINUTE = '15'
 const DATE_FORMATTER = 'MMMM D, YYYY h:mm A'
 const DEFAULT_TIMEZONE = 'America/New_York'
+const HEART_EYES_EMOJI_ID = '%F0%9F%98%8D'
+const THINKING_EMOJI_ID = '%F0%9F%A4%94'
+const FROWNING2_EMOJI_ID = '%E2%98%B9%EF%B8%8F'
 
 client.once('ready', () => {
   console.log('Ready!');
@@ -57,7 +60,6 @@ const isValidDate = () => {
 }
 
 const parseArgs = (args = []) => {
-  console.log(args)
   return args.reduce((acc, curr) => {
     const argsSplit = curr.trim().split('=');
       if (argsSplit.length === 2) {
@@ -65,7 +67,6 @@ const parseArgs = (args = []) => {
         switch (key) {
           case 'title':
             const titleValue = argsSplit[1].trim()
-            console.log('TITLE', titleValue)
             if (titleValue) {
               acc['title'] = titleValue
             }
@@ -148,17 +149,17 @@ client.on('message', (message) => {
           fields: [
             {
               name: 'Going',
-              value: '----',
+              value: '----\n',
               inline: true
             },
             {
               name: 'Declined',
-              value: '----',
+              value: '----\n',
               inline: true
             },
             {
               name: 'Maybe',
-              value: '----',
+              value: '----\n',
               inline: true
             },
           ],
@@ -182,6 +183,22 @@ client.on('message', (message) => {
   }
 });
 
+const addUserToField = (field, username) => {
+  const fieldValues = field.value.split('\n')
+  const fieldValuesSet = new Set(fieldValues)
+  if (!fieldValuesSet.has(username)) {
+    fieldValues.push(username)
+    field.value = fieldValues.join('\n')
+  }
+}
+
+const removeUserFromFields = (field1, field2, username) => {
+  const field1Values = field1.value.split('\n')
+  const field2Values = field2.value.split('\n')
+  field1.value = field1Values.filter(fv => fv !== username).join('\n')
+  field2.value = field2Values.filter(fv => fv !== username).join('\n')
+}
+
 client.on('messageReactionAdd', async (reaction, user) => {
   // When we receive a reaction we check if the reaction is partial or not
 	if (reaction.partial) {
@@ -196,10 +213,45 @@ client.on('messageReactionAdd', async (reaction, user) => {
 	}
 	const message = reaction.message
 	if (message.author && message.author.bot && message.author.username === BOT_NAME) {
-	  console.log(`message`, reaction.message);
-	// Now the message has been cached and is fully available
-	console.log(`${message.author}'s message "${reaction.message.content}" gained a reaction!`);
-	// The reaction is now also fully available and the properties will be reflected accurately:
-	console.log(`${reaction.count} user(s) have given the same reaction to this message!`);
+	  const currentReactionId = reaction.emoji.identifier
+	  const rsvpReactions = new Set([THINKING_EMOJI_ID, HEART_EYES_EMOJI_ID, FROWNING2_EMOJI_ID])
+	  // Only need to do all this work if the user reacted with an RSVP reaction
+	  if (rsvpReactions.has(currentReactionId)) {
+	    const userId = user.id
+	    // Make sure the user cannot react to multiple RSVP reactions
+	    const userReactions = message.reactions.cache.filter(reaction => reaction.users.cache.has(userId));
+      try {
+  	    for (const userReaction of userReactions.values()) {
+  	      const userReactionId = userReaction.emoji.identifier
+  	      if (rsvpReactions.has(userReactionId) && userReactionId !== currentReactionId) {
+  	        // Okay now make sure the user has not use any other RSVP reactions; if so, remove it
+  	        await userReaction.users.remove(userId)
+  	      }
+  	    }
+      } catch (error) {
+  	    console.error('Failed to remove reactions.');
+      }
+      // Send the updated message
+      // Bets if we keep track of all this with a DATABASE, but since our channel only has few users if wont be an issue
+      const currentGoingField = reaction.message.embeds[0].fields[0]
+      const currentDeclinedField = reaction.message.embeds[0].fields[1]
+      const currentMaybeField = reaction.message.embeds[0].fields[2]
+      const usernameOfPersonWhoReacted = user.username
+      // Add the user to the field
+      if (currentReactionId === HEART_EYES_EMOJI_ID) {
+        removeUserFromFields(currentDeclinedField, currentMaybeField, usernameOfPersonWhoReacted)
+        addUserToField(currentGoingField, usernameOfPersonWhoReacted)
+      } else if (currentReactionId === FROWNING2_EMOJI_ID) {
+        removeUserFromFields(currentGoingField, currentMaybeField, usernameOfPersonWhoReacted)
+        addUserToField(currentDeclinedField, usernameOfPersonWhoReacted)
+      } else if (currentReactionId === THINKING_EMOJI_ID) {
+        removeUserFromFields(currentGoingField, currentDeclinedField, usernameOfPersonWhoReacted)
+        addUserToField(currentMaybeField, usernameOfPersonWhoReacted)
+      }
+      const updatedFieldValues = [currentGoingField, currentDeclinedField, currentMaybeField]
+      const embed = reaction.message.embeds[0]
+      embed.spliceFields(0, 3, updatedFieldValues)
+      reaction.message.edit(embed)
+	  }
 	}
 });
