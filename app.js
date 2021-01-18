@@ -12,9 +12,11 @@ const BOT_NAME = 'nevaan-event-scheduler'
 const COMMAND_PREFIX = '!'
 const ARG_PREFIX = '--'
 const ALLOWED_DATE_ARG_WORDS = new Set(['today', 'tomorrow', 'day-after'])
-const ALLOWED_MENTION_ARGS = new Set(['none', 'all'])
 const DEFAULT_HOUR = '12'
 const DEFAULT_MINUTE = '15'
+const DEFAULT_DATE = 'today'
+const DEFAULT_MENTION = 'none'
+const ALLOWED_MENTION_ARGS = new Set([DEFAULT_MENTION, 'all'])
 const DEFAULT_TITLE = 'Who wants pho?'
 const DATE_FORMATTER = 'MMMM D, YYYY h:mm A'
 const DEFAULT_TIMEZONE = 'America/New_York'
@@ -154,15 +156,6 @@ const addUserToField = (field, username) => {
   }
 }
 
-const removeUserFromFields = (fields = [], username) => {
-  fields.forEach(field => {
-    if (field && typeof field.value === 'string') {
-      const fieldValues = field.value.split('\n')
-      field.value = fieldValues.filter(fv => fv !== username).join('\n')
-    }
-  })
-}
-
 client.on('messageReactionRemove', async (reaction, user) => {
   // When we receive a reaction we check if the reaction is partial or not
 	if (reaction.partial) {
@@ -181,13 +174,8 @@ client.on('messageReactionRemove', async (reaction, user) => {
 	  const rsvpReactions = new Set([THINKING_EMOJI_ID, HEART_EYES_EMOJI_ID, FROWNING2_EMOJI_ID])
 	  // Only need to do all this work if the user reacted with an RSVP reaction
 	  if (rsvpReactions.has(currentReactionId)) {
-      // Send the updated message
-      // Bets if we keep track of all this with a DATABASE, but since our channel only has few users if wont be an issue
-      const currentGoingField = reaction.message.embeds[0].fields[0]
-      const currentDeclinedField = reaction.message.embeds[0].fields[1]
-      const currentMaybeField = reaction.message.embeds[0].fields[2]
       const usernameOfPersonWhoReacted = user.username
-      // Add the user to the field
+      // Remove the user form the field
       let updatedData
       if (currentReactionId === HEART_EYES_EMOJI_ID) {
         updatedData = await updateMessage({ updateType: 'DELETE', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'GOING' })
@@ -213,7 +201,7 @@ client.on('messageReactionRemove', async (reaction, user) => {
           const fieldValues = updatedData.MAYBE.join('\n')
           const updatedField = [{ name: 'Maybe', value: fieldValues, inline: true }]
           const embed = reaction.message.embeds[0]
-          embed.spliceFields(1, 1, updatedField)
+          embed.spliceFields(2, 1, updatedField)
           reaction.message.edit(embed)
         }
       }
@@ -256,32 +244,64 @@ client.on('messageReactionAdd', async (reaction, user) => {
       }
       // Send the updated message
       // wait till messageReactionRemove runs
-      const waitTime = reactionRemoved ? 200 : 0
+      const waitTime = reactionRemoved ? 500 : 0
       await new Promise(resolve => setTimeout(resolve, waitTime));
-      // BEST if we keep track of all this with a DATABASE, but since our channel only has few users if wont be an issue
-      const currentGoingField = reaction.message.embeds[0].fields[0]
-      const currentDeclinedField = reaction.message.embeds[0].fields[1]
-      const currentMaybeField = reaction.message.embeds[0].fields[2]
       const usernameOfPersonWhoReacted = user.username
-      // Add the user to the field
+      // Remove the user form the field
+      let updatedData
       if (currentReactionId === HEART_EYES_EMOJI_ID) {
-        addUserToField(currentGoingField, usernameOfPersonWhoReacted)
+        updatedData = await updateMessage({ updateType: 'ADD', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'GOING' })
+        if (updatedData) {
+          const fieldValues = updatedData.GOING.join('\n')
+          const updatedField = [{ name: 'Going', value: fieldValues, inline: true }]
+          const embed = reaction.message.embeds[0]
+          embed.spliceFields(0, 1, updatedField)
+          reaction.message.edit(embed)
+          // Make sure no dupes a lying around
+          if (new Set(updatedData.DECLINED).has(usernameOfPersonWhoReacted)) {
+            updateMessage({ updateType: 'DELETE', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'DECLINED' })
+          } else if (new Set(updatedData.MAYBE).has(usernameOfPersonWhoReacted)) {
+            updateMessage({ updateType: 'DELETE', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'MAYBE' })
+          }
+        }
       } else if (currentReactionId === FROWNING2_EMOJI_ID) {
-        addUserToField(currentDeclinedField, usernameOfPersonWhoReacted)
+        updatedData = await updateMessage({ updateType: 'ADD', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'DECLINED' })
+        if (updatedData) {
+          const fieldValues = updatedData.DECLINED.join('\n')
+          const updatedField = [{ name: 'Declined', value: fieldValues, inline: true }]
+          const embed = reaction.message.embeds[0]
+          embed.spliceFields(1, 1, updatedField)
+          reaction.message.edit(embed)
+          // Make sure no dupes a lying around
+          if (new Set(updatedData.GOING).has(usernameOfPersonWhoReacted)) {
+            updateMessage({ updateType: 'DELETE', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'GOING' })
+          } else if (new Set(updatedData.MAYBE).has(usernameOfPersonWhoReacted)) {
+            updateMessage({ updateType: 'DELETE', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'MAYBE' })
+          }
+        }
       } else if (currentReactionId === THINKING_EMOJI_ID) {
-        addUserToField(currentMaybeField, usernameOfPersonWhoReacted)
+        updatedData = await updateMessage({ updateType: 'ADD', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'MAYBE' })
+        if (updatedData) {
+          const fieldValues = updatedData.MAYBE.join('\n')
+          const updatedField = [{ name: 'Maybe', value: fieldValues, inline: true }]
+          const embed = reaction.message.embeds[0]
+          embed.spliceFields(2, 1, updatedField)
+          reaction.message.edit(embed)
+          // Make sure no dupes a lying around
+          if (new Set(updatedData.GOING).has(usernameOfPersonWhoReacted)) {
+            updateMessage({ updateType: 'DELETE', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'GOING' })
+          } else if (new Set(updatedData.MAYBE).has(usernameOfPersonWhoReacted)) {
+            updateMessage({ updateType: 'DELETE', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'DECLINED' })
+          }
+        }
       }
-      const updatedFieldValues = [currentGoingField, currentDeclinedField, currentMaybeField]
-      const embed = reaction.message.embeds[0]
-      embed.spliceFields(0, 3, updatedFieldValues)
-      reaction.message.edit(embed)
 	  }
 	}
 });
 
 // ================== HELPERS ==========================
 
-const formatDate = ({ date = 'today', hour = DEFAULT_HOUR, minute = DEFAULT_MINUTE }) => {
+const formatDate = ({ date = DEFAULT_DATE, hour = DEFAULT_HOUR, minute = DEFAULT_MINUTE }) => {
   const now = dayjs().format('YYYY-MM-DD')
   switch (date) {
     case 'today':
@@ -361,7 +381,7 @@ const parseArgs = (args = []) => {
         }
       }
     return acc
-  }, { title: DEFAULT_TITLE, hour: '12', minute: '15', mention: 'none', date: 'today' })
+  }, { title: DEFAULT_TITLE, hour: DEFAULT_HOUR, minute: DEFAULT_MINUTE, mention: DEFAULT_MENTION, date: DEFAULT_DATE })
 }
 
 // Retrieves the meeting from the table by the meeting title
@@ -394,12 +414,12 @@ async function putMessage(messageId, going, declined, maybe) {
 }
 
 async function updateMessage({ updateType, values, messageId, setName }) {
-  if (updateType === 'DELETE') {
+  if (updateType === 'DELETE' || updateType === 'ADD') {
     const result = await ddbDocumentClient
     .update({
       TableName: reactionsTableName,
       Key: { MessageId: messageId },
-      UpdateExpression: `DELETE ${setName} :v`,
+      UpdateExpression: `${updateType} ${setName} :v`,
       ExpressionAttributeValues: {
         ":v": ddbDocumentClient.createSet(values)
       },
