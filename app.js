@@ -426,7 +426,8 @@ async function putMessage(messageId, going, declined, maybe) {
         GOING: ddbDocumentClient.createSet(going),
         DECLINED: ddbDocumentClient.createSet(declined),
         MAYBE: ddbDocumentClient.createSet(maybe),
-        TTL: `${Math.floor(Date.now() / 1000) + 60 * 60 * 24}`, // clean up meeting record one day from now
+        TTL: `${Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 365}`, // clean up meeting record year from now
+        createdAt: Date.now()
       }
     })
     .promise();
