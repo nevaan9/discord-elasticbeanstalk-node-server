@@ -19,6 +19,7 @@ const DEFAULT_MENTION = 'none'
 const ALLOWED_MENTION_ARGS = new Set([DEFAULT_MENTION, 'all'])
 const DEFAULT_TITLE = 'Who wants pho?'
 const DATE_FORMATTER = 'MMMM D, YYYY h:mm A'
+const GOING_NUMBER_FOR_LINK = 4
 const DEFAULT_TIMEZONE = 'America/New_York'
 const HEART_EYES_EMOJI_ID = '%F0%9F%98%8D'
 const THINKING_EMOJI_ID = '%F0%9F%A4%94'
@@ -184,6 +185,9 @@ client.on('messageReactionRemove', async (reaction, user) => {
           const updatedField = [{ name: 'Going', value: fieldValues, inline: true }]
           const embed = reaction.message.embeds[0]
           embed.spliceFields(0, 1, updatedField)
+          if (new Set(updatedData.GOING).size <= 1) {
+            embed.setFooter(``).setURL('')
+          }
           reaction.message.edit(embed)
         }
       } else if (currentReactionId === FROWNING2_EMOJI_ID) {
@@ -256,6 +260,10 @@ client.on('messageReactionAdd', async (reaction, user) => {
           const updatedField = [{ name: 'Going', value: fieldValues, inline: true }]
           const embed = reaction.message.embeds[0]
           embed.spliceFields(0, 1, updatedField)
+          // Should we add a google link?
+          if (new Set(updatedData.GOING).size >= GOING_NUMBER_FOR_LINK) {
+            embed.setFooter(`${GOING_NUMBER_FOR_LINK} or more people said they are going! Make a calendar invite by clicking the link on top!`).setURL('https://calendar.google.com/calendar/')
+          }
           reaction.message.edit(embed)
           // Make sure no dupes a lying around
           if (new Set(updatedData.DECLINED).has(usernameOfPersonWhoReacted)) {
@@ -274,7 +282,12 @@ client.on('messageReactionAdd', async (reaction, user) => {
           reaction.message.edit(embed)
           // Make sure no dupes a lying around
           if (new Set(updatedData.GOING).has(usernameOfPersonWhoReacted)) {
-            updateMessage({ updateType: 'DELETE', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'GOING' })
+            const cleanupUpdate = updateMessage({ updateType: 'DELETE', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'GOING' })
+            if (cleanupUpdate) {
+              if (new Set(updatedData.GOING).size < 1) {
+                embed.setFooter(``).setURL('')
+              }
+            }
           } else if (new Set(updatedData.MAYBE).has(usernameOfPersonWhoReacted)) {
             updateMessage({ updateType: 'DELETE', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'MAYBE' })
           }
@@ -289,7 +302,12 @@ client.on('messageReactionAdd', async (reaction, user) => {
           reaction.message.edit(embed)
           // Make sure no dupes a lying around
           if (new Set(updatedData.GOING).has(usernameOfPersonWhoReacted)) {
-            updateMessage({ updateType: 'DELETE', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'GOING' })
+            const cleanupUpdate = updateMessage({ updateType: 'DELETE', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'GOING' })
+            if (cleanupUpdate) {
+              if (new Set(updatedData.GOING).size <= 1) {
+                embed.setFooter(``).setURL('')
+              }
+            }
           } else if (new Set(updatedData.MAYBE).has(usernameOfPersonWhoReacted)) {
             updateMessage({ updateType: 'DELETE', values: [`${usernameOfPersonWhoReacted}`], messageId: message.id, setName: 'DECLINED' })
           }
