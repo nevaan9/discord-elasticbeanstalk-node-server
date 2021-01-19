@@ -29,7 +29,6 @@ client.once('ready', () => {
 
 const ENV = process.env.NODE_ENV;
 let creds = {};
-console.log('ENVIRONMENT', ENV);
 if (!ENV || ENV === 'development') {
   try {
     creds = require('./credentials.json');
@@ -60,7 +59,7 @@ client.login(discordCredentials);
 // --people (default '4', { accepted number })
 // timezone (TODO): assuming EST for now
 
-const helpText = `Accepted arguments: \n\n --date=<value> [default=today, acceptedValues = today|tomorrow|day-after]: Date for the event \n\n --time=<value> [default=${DEFAULT_HOUR}:${DEFAULT_MINUTE}, format={hh}:{mm}, use 24 hour clock values]: Time of the event \n\n --title=<value> [default=${DEFAULT_TITLE}]: Title of the event \n\n --mention=<value> [default=none, acceptedValues= none|all]: If you'd like to notify all in the channel \n\n --minPeople=<value> [default=4, NOT IMPLEMENTED YET!]: The minumum number of people required to say 'Going' for the google cal link to show up `;
+const helpText = `Accepted arguments: \n\n --date=<value> [default=today, acceptedValues = today|tomorrow|day-after]: Date for the event \n\n --time=<value> [default=${DEFAULT_HOUR}:${DEFAULT_MINUTE}, format={hh}:{mm}, use 24 hour clock values]: Time of the event \n\n --title=<value> [default=${DEFAULT_TITLE}]: Title of the event \n\n --mention=<value> [default=none, acceptedValues= none|all]: If you'd like to notify all in the channel \n\n --minPeople=<value> [default=4, acceptedValues= n > 0 && n < 100]: The minumum number of people required to say 'Going' for the google cal link to show up `;
 const baseDescription =
   ':heart_eyes: = Going; :frowning2: = Not Going; :thinking: = Maybe';
 
@@ -86,7 +85,7 @@ client.on('message', (message) => {
           message.channel.send(helpText);
           return;
         }
-        const { title, hour, minute, mention, date } = parseArgs(args);
+        const { title, hour, minute, mention, date, minPeople } = parseArgs(args);
         // if date === today and the time is greater than current time, default to tomorrow
         let { formatted, timezoned } = formatDate({ date, hour, minute });
         const clientTimeZoneOffSet = timezoned.utcOffset();
@@ -113,7 +112,7 @@ client.on('message', (message) => {
         const embed = new MessageEmbed({
           color: 3447003,
           title: `${title}`,
-          description: `When: ${finalDateFormatted} \n \n ${baseDescription}`,
+          description: `When: ${finalDateFormatted} \n Looking for: ${minPeople} people \n \n ${baseDescription}`,
           fields: [
             {
               name: 'Going',
@@ -146,7 +145,7 @@ client.on('message', (message) => {
           message.channel.send('@everyone').then(() => {
             message.channel.send(embed).then(async (messageInfo) => {
               try {
-                await putMessage({ messageId: `${messageInfo.id}`, going: defaultAttendees.GOING, declined: defaultAttendees.DECLINDED, maybe: defaultAttendees.MAYBE, eventDateTime: finalDateFormatted, minPeople: DEFAULT_MIN_PEOPLE })
+                await putMessage({ messageId: `${messageInfo.id}`, going: defaultAttendees.GOING, declined: defaultAttendees.DECLINDED, maybe: defaultAttendees.MAYBE, eventDateTime: finalDateFormatted, minPeople })
               } catch (e) {
                 console.error(e, 'Error adding info to reactions table');
               }
@@ -155,7 +154,7 @@ client.on('message', (message) => {
         } else {
           message.channel.send(embed).then(async (messageInfo) => {
             try {
-              await putMessage({ messageId: `${messageInfo.id}`, going: defaultAttendees.GOING, declined: defaultAttendees.DECLINDED, maybe: defaultAttendees.MAYBE, eventDateTime: finalDateFormatted, minPeople: DEFAULT_MIN_PEOPLE })
+              await putMessage({ messageId: `${messageInfo.id}`, going: defaultAttendees.GOING, declined: defaultAttendees.DECLINDED, maybe: defaultAttendees.MAYBE, eventDateTime: finalDateFormatted, minPeople })
             } catch (e) {
               console.error(e, 'Error adding info to reactions table');
             }
@@ -322,10 +321,11 @@ client.on('messageReactionAdd', async (reaction, user) => {
           const embed = reaction.message.embeds[0];
           embed.spliceFields(0, 1, updatedField);
           // Should we add a google link?
-          if (new Set(updatedData.GOING).size >= DEFAULT_MIN_PEOPLE) {
+          const minPeopleRequired = updatedData.minPeople || DEFAULT_MIN_PEOPLE
+          if (new Set(updatedData.GOING).size >= minPeopleRequired) {
             embed
               .setFooter(
-                `${DEFAULT_MIN_PEOPLE} or more people said they are going! Make a calendar invite by clicking the link on top!`
+                `✅ ${minPeopleRequired} or more people said they are going! Make a calendar invite by clicking the link on top!`
               )
               .setURL('https://calendar.google.com/calendar/');
           }
@@ -373,7 +373,8 @@ client.on('messageReactionAdd', async (reaction, user) => {
               setName: 'GOING',
             });
             if (cleanupUpdate) {
-              if (new Set(updatedData.GOING).size < 1) {
+              const minPeopleRequired = cleanupUpdate.minPeople || DEFAULT_MIN_PEOPLE
+              if (new Set(updatedData.GOING).size < minPeopleRequired) {
                 embed.setFooter(``).setURL('');
               }
             }
@@ -479,6 +480,16 @@ const parseArgs = (args = []) => {
       if (argsSplit.length === 2) {
         const key = argsSplit[0].toLowerCase();
         switch (key) {
+          // only this needs to be lowercase
+          case 'minpeople':
+            const minPeopleValue = argsSplit[1].trim()
+            if (minPeopleValue) {
+              const minPeopleValueParsed = parseInt(minPeopleValue)
+              if (minPeopleValueParsed && !isNaN(minPeopleValueParsed) && minPeopleValueParsed > 0 && minPeopleValueParsed < 100) {
+                acc['minPeople'] = `${minPeopleValueParsed}`;
+              }
+            }
+            break;
           case 'title':
             const titleValue = argsSplit[1].trim();
             if (titleValue) {
@@ -549,6 +560,7 @@ const parseArgs = (args = []) => {
       minute: DEFAULT_MINUTE,
       mention: DEFAULT_MENTION,
       date: DEFAULT_DATE,
+      minPeople: DEFAULT_MIN_PEOPLE
     }
   );
 };
@@ -603,6 +615,7 @@ async function updateMessage({ updateType, values, messageId, setName }) {
         GOING: result.Attributes.GOING.values,
         DECLINED: result.Attributes.DECLINED.values,
         MAYBE: result.Attributes.MAYBE.values,
+        minPeople: result.Attributes.minPeople
       };
     }
     return null;
