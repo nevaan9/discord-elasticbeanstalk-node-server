@@ -169,23 +169,24 @@ client.on('message', (message) => {
 });
 
 client.on('messageReactionRemove', async (reaction, user) => {
-  // When we receive a reaction we check if the reaction is partial or not
-  if (reaction.partial) {
-    // If the message this reaction belongs to was removed the fetching might result in an API error, which we need to handle
-    try {
-      await reaction.fetch();
-    } catch (error) {
-      console.error('Something went wrong when fetching the message: ', error);
-      // Return as `reaction.message.author` may be undefined/null
-      return;
-    }
-  }
   const message = reaction.message;
   if (
     message.author &&
     message.author.bot &&
     message.author.username === BOT_APP_NAME
   ) {
+    // When we receive a reaction we check if the reaction is partial or not
+    if (reaction.partial) {
+      // If the message this reaction belongs to was removed the fetching might result in an API error, which we need to handle
+      try {
+        await reaction.fetch();
+        
+      } catch (error) {
+        console.error('Something went wrong when fetching the message: ', error);
+        // Return as `reaction.message.author` may be undefined/null
+        return;
+      }
+    }
     const currentReactionId = reaction.emoji.identifier;
     const rsvpReactions = new Set([
       THINKING_EMOJI_ID,
@@ -254,23 +255,23 @@ client.on('messageReactionRemove', async (reaction, user) => {
 });
 
 client.on('messageReactionAdd', async (reaction, user) => {
-  // When we receive a reaction we check if the reaction is partial or not
-  if (reaction.partial) {
-    // If the message this reaction belongs to was removed the fetching might result in an API error, which we need to handle
-    try {
-      await reaction.fetch();
-    } catch (error) {
-      console.error('Something went wrong when fetching the message: ', error);
-      // Return as `reaction.message.author` may be undefined/null
-      return;
-    }
-  }
   const message = reaction.message;
   if (
     message.author &&
     message.author.bot &&
     message.author.username === BOT_APP_NAME
   ) {
+    // When we receive a reaction we check if the reaction is partial or not
+    if (reaction.partial) {
+      // If the message this reaction belongs to was removed the fetching might result in an API error, which we need to handle
+      try {
+        await reaction.fetch();
+      } catch (error) {
+        console.error('Something went wrong when fetching the message: ', error);
+        // Return as `reaction.message.author` may be undefined/null
+        return;
+      }
+    }
     const currentReactionId = reaction.emoji.identifier;
     const rsvpReactions = new Set([
       THINKING_EMOJI_ID,
