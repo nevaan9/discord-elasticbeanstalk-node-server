@@ -85,7 +85,9 @@ client.on('message', (message) => {
           message.channel.send(helpText);
           return;
         }
-        const { title, hour, minute, mention, date, minPeople } = parseArgs(args);
+        const { title, hour, minute, mention, date, minPeople } = parseArgs(
+          args
+        );
         // if date === today and the time is greater than current time, default to tomorrow
         let { formatted, timezoned } = formatDate({ date, hour, minute });
         const clientTimeZoneOffSet = timezoned.utcOffset();
@@ -145,7 +147,14 @@ client.on('message', (message) => {
           message.channel.send('@everyone').then(() => {
             message.channel.send(embed).then(async (messageInfo) => {
               try {
-                await putMessage({ messageId: `${messageInfo.id}`, going: defaultAttendees.GOING, declined: defaultAttendees.DECLINDED, maybe: defaultAttendees.MAYBE, eventDateTime: finalDateFormatted, minPeople })
+                await putMessage({
+                  messageId: `${messageInfo.id}`,
+                  going: defaultAttendees.GOING,
+                  declined: defaultAttendees.DECLINDED,
+                  maybe: defaultAttendees.MAYBE,
+                  eventDateTime: finalDateFormatted,
+                  minPeople,
+                });
               } catch (e) {
                 console.error(e, 'Error adding info to reactions table');
               }
@@ -154,7 +163,14 @@ client.on('message', (message) => {
         } else {
           message.channel.send(embed).then(async (messageInfo) => {
             try {
-              await putMessage({ messageId: `${messageInfo.id}`, going: defaultAttendees.GOING, declined: defaultAttendees.DECLINDED, maybe: defaultAttendees.MAYBE, eventDateTime: finalDateFormatted, minPeople })
+              await putMessage({
+                messageId: `${messageInfo.id}`,
+                going: defaultAttendees.GOING,
+                declined: defaultAttendees.DECLINDED,
+                maybe: defaultAttendees.MAYBE,
+                eventDateTime: finalDateFormatted,
+                minPeople,
+              });
             } catch (e) {
               console.error(e, 'Error adding info to reactions table');
             }
@@ -179,9 +195,11 @@ client.on('messageReactionRemove', async (reaction, user) => {
       // If the message this reaction belongs to was removed the fetching might result in an API error, which we need to handle
       try {
         await reaction.fetch();
-        
       } catch (error) {
-        console.error('Something went wrong when fetching the message: ', error);
+        console.error(
+          'Something went wrong when fetching the message: ',
+          error
+        );
         // Return as `reaction.message.author` may be undefined/null
         return;
       }
@@ -266,7 +284,10 @@ client.on('messageReactionAdd', async (reaction, user) => {
       try {
         await reaction.fetch();
       } catch (error) {
-        console.error('Something went wrong when fetching the message: ', error);
+        console.error(
+          'Something went wrong when fetching the message: ',
+          error
+        );
         // Return as `reaction.message.author` may be undefined/null
         return;
       }
@@ -321,7 +342,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
           const embed = reaction.message.embeds[0];
           embed.spliceFields(0, 1, updatedField);
           // Should we add a google link?
-          const minPeopleRequired = updatedData.minPeople || DEFAULT_MIN_PEOPLE
+          const minPeopleRequired = updatedData.minPeople || DEFAULT_MIN_PEOPLE;
           if (new Set(updatedData.GOING).size >= minPeopleRequired) {
             embed
               .setFooter(
@@ -373,7 +394,8 @@ client.on('messageReactionAdd', async (reaction, user) => {
               setName: 'GOING',
             });
             if (cleanupUpdate) {
-              const minPeopleRequired = cleanupUpdate.minPeople || DEFAULT_MIN_PEOPLE
+              const minPeopleRequired =
+                cleanupUpdate.minPeople || DEFAULT_MIN_PEOPLE;
               if (new Set(updatedData.GOING).size < minPeopleRequired) {
                 embed.setFooter(``).setURL('');
               }
@@ -482,10 +504,15 @@ const parseArgs = (args = []) => {
         switch (key) {
           // only this needs to be lowercase
           case 'minpeople':
-            const minPeopleValue = argsSplit[1].trim()
+            const minPeopleValue = argsSplit[1].trim();
             if (minPeopleValue) {
-              const minPeopleValueParsed = parseInt(minPeopleValue)
-              if (minPeopleValueParsed && !isNaN(minPeopleValueParsed) && minPeopleValueParsed > 0 && minPeopleValueParsed < 100) {
+              const minPeopleValueParsed = parseInt(minPeopleValue);
+              if (
+                minPeopleValueParsed &&
+                !isNaN(minPeopleValueParsed) &&
+                minPeopleValueParsed > 0 &&
+                minPeopleValueParsed < 100
+              ) {
                 acc['minPeople'] = `${minPeopleValueParsed}`;
               }
             }
@@ -560,7 +587,7 @@ const parseArgs = (args = []) => {
       minute: DEFAULT_MINUTE,
       mention: DEFAULT_MENTION,
       date: DEFAULT_DATE,
-      minPeople: DEFAULT_MIN_PEOPLE
+      minPeople: DEFAULT_MIN_PEOPLE,
     }
   );
 };
@@ -579,7 +606,14 @@ async function getMessage(messageId) {
 }
 
 // Stores the meeting in the table using the meeting title as the key
-async function putMessage({ messageId, going, declined, maybe, eventDateTime, minPeople }) {
+async function putMessage({
+  messageId,
+  going,
+  declined,
+  maybe,
+  eventDateTime,
+  minPeople,
+}) {
   await ddbDocumentClient
     .put({
       TableName: reactionsTableName,
@@ -591,8 +625,8 @@ async function putMessage({ messageId, going, declined, maybe, eventDateTime, mi
         TTL: `${Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 365}`, // clean up meeting record year from now
         createdAt: Date.now(),
         eventDateTime,
-        minPeople
-      }
+        minPeople,
+      },
     })
     .promise();
 }
@@ -615,7 +649,7 @@ async function updateMessage({ updateType, values, messageId, setName }) {
         GOING: result.Attributes.GOING.values,
         DECLINED: result.Attributes.DECLINED.values,
         MAYBE: result.Attributes.MAYBE.values,
-        minPeople: result.Attributes.minPeople
+        minPeople: result.Attributes.minPeople,
       };
     }
     return null;
