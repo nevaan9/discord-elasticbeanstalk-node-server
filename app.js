@@ -146,12 +146,7 @@ client.on('message', (message) => {
           message.channel.send('@everyone').then(() => {
             message.channel.send(embed).then(async (messageInfo) => {
               try {
-                await putMessage(
-                  `${messageInfo.id}`,
-                  defaultAttendees.GOING,
-                  defaultAttendees.DECLINDED,
-                  defaultAttendees.MAYBE
-                );
+                await putMessage({ messageId: `${messageInfo.id}`, going: defaultAttendees.GOING, declined: defaultAttendees.DECLINDED, maybe: defaultAttendees.MAYBE, eventDateTime: finalDateFormatted, minPeople: DEFAULT_MIN_PEOPLE })
               } catch (e) {
                 console.error(e, 'Error adding info to reactions table');
               }
@@ -160,12 +155,7 @@ client.on('message', (message) => {
         } else {
           message.channel.send(embed).then(async (messageInfo) => {
             try {
-              await putMessage(
-                `${messageInfo.id}`,
-                defaultAttendees.GOING,
-                defaultAttendees.DECLINDED,
-                defaultAttendees.MAYBE
-              );
+              await putMessage({ messageId: `${messageInfo.id}`, going: defaultAttendees.GOING, declined: defaultAttendees.DECLINDED, maybe: defaultAttendees.MAYBE, eventDateTime: finalDateFormatted, minPeople: DEFAULT_MIN_PEOPLE })
             } catch (e) {
               console.error(e, 'Error adding info to reactions table');
             }
@@ -576,7 +566,7 @@ async function getMessage(messageId) {
 }
 
 // Stores the meeting in the table using the meeting title as the key
-async function putMessage(messageId, going, declined, maybe) {
+async function putMessage({ messageId, going, declined, maybe, eventDateTime, minPeople }) {
   await ddbDocumentClient
     .put({
       TableName: reactionsTableName,
@@ -587,7 +577,9 @@ async function putMessage(messageId, going, declined, maybe) {
         MAYBE: ddbDocumentClient.createSet(maybe),
         TTL: `${Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 365}`, // clean up meeting record year from now
         createdAt: Date.now(),
-      },
+        eventDateTime,
+        minPeople
+      }
     })
     .promise();
 }
