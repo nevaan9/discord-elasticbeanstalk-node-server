@@ -115,7 +115,7 @@ client.on('message', (message) => {
           color: 3447003,
           title: `${title}`,
           description: `When: ${finalDateFormatted} \n Looking for: ${minPeople} ${
-            minPeople === 1 ? 'person' : 'people'
+            minPeople === '1' ? 'person' : 'people'
           } \n \n ${baseDescription}`,
           fields: [
             {
