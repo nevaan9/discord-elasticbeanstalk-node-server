@@ -60,34 +60,37 @@ client.login(discordCredentials);
 // timezone (TODO): assuming EST for now
 
 const helpEmbed = {
-	title: 'Accepted Commands',
-	description: "This bot was inspired by [Apollo](https://top.gg/bot/475744554910351370) \n\n `!pho` is the base command (Creates a default event) \n Append any of the following args to customize the event",
-	fields: [
-		{
-			name: '--date=<value> [default=today, acceptedValues = today|tomorrow|day-after]',
-			value: 'Date of the event',
-		},
-		{
-			name: `--time=<value> [default=${DEFAULT_HOUR}:${DEFAULT_MINUTE}, format={hh}:{mm}]`,
-			value: 'Time of the event (use 24 hour clock values)',
-		},
-		{
-			name: `--title=<value> [default=${DEFAULT_TITLE}]`,
-			value: 'Title of the event',
-		},
-		{
-			name: `--mention=<value> [default=none, acceptedValues= none|all]`,
-			value: `If you'd like to notify all in the channel`,
-		},
-		{
-			name: `--minPeople=<value> [default=4, acceptedValues= n > 0 && n < 100]`,
-			value: `The minumum number of people required to say 'Going' for the google cal link to show up`,
-		},
-		{
-			name: `Examples`,
-			value: '`!pho --date=tomorrow` \n `!pho --time=13:30 --minPeople=2` \n `!pho --title=Blue State? --mention=all --time=15:00`',
-		},
-	]
+  title: 'Accepted Commands',
+  description:
+    'This bot was inspired by [Apollo](https://top.gg/bot/475744554910351370) \n\n `!pho` is the base command (Creates a default event) \n Append any of the following args to customize the event',
+  fields: [
+    {
+      name:
+        '--date=<value> [default=today, acceptedValues = today|tomorrow|day-after]',
+      value: 'Date of the event',
+    },
+    {
+      name: `--time=<value> [default=${DEFAULT_HOUR}:${DEFAULT_MINUTE}, format={hh}:{mm}]`,
+      value: 'Time of the event (use 24 hour clock values)',
+    },
+    {
+      name: `--title=<value> [default=${DEFAULT_TITLE}]`,
+      value: 'Title of the event',
+    },
+    {
+      name: `--mention=<value> [default=none, acceptedValues= none|all]`,
+      value: `If you'd like to notify all in the channel`,
+    },
+    {
+      name: `--minPeople=<value> [default=4, acceptedValues= n > 0 && n < 100]`,
+      value: `The minumum number of people required to say 'Going' for the google cal link to show up`,
+    },
+    {
+      name: `Examples`,
+      value:
+        '`!pho --date=tomorrow` \n `!pho --time=13:30 --minPeople=2` \n `!pho --title=Blue State? --mention=all --time=15:00`',
+    },
+  ],
 };
 const baseDescription =
   ':heart_eyes: = Going; :frowning2: = Not Going; :thinking: = Maybe';
